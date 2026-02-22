@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Brutal Color Quest - Final</title>
+    <style>
+        body { background: #000; color: white; font-family: 'Courier New', monospace; text-align: center; margin: 0; overflow: hidden; }
+        #ui { padding: 10px; background: #111; border-bottom: 4px solid #ff4500; display: flex; justify-content: space-around; align-items: center; height: 75px; box-sizing: border-box; }
+        #game-board { 
+            position: relative; width: 400px; height: 400px; 
+            background: #222; margin: 20px auto; 
+            border: 10px solid #444; 
+            display: block; overflow: hidden;
+        }
+        .cell { 
+            position: absolute; width: 20px; height: 20px; 
+            display: flex; align-items: center; justify-content: center; 
+            box-sizing: border-box; font-size: 14px;
+        }
+        .lava { background: #ff4500; color: black; font-weight: bold; z-index: 5; }
+        .target { border-radius: 50%; border: 2px solid #fff; z-index: 6; transform: scale(0.8); }
+        #player { font-size: 18px; z-index: 10; transition: left 0.05s, top 0.05s; }
+        
+        /* Specific Colors */
+        .color-red { background-color: red !important; }
+        .color-green { background-color: green !important; }
+        .color-blue { background-color: blue !important; }
+        .color-yellow { background-color: yellow !important; }
+        
+        #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
+        #big-emoji { font-size: 120px; margin-bottom: 20px; }
+        #countdown-text { font-size: 6rem; color: #ff4500; font-weight: bold; }
+        button { padding: 15px 40px; font-size: 1.5rem; cursor: pointer; background: #ff4500; color: #fff; border: none; border-radius: 8px; font-family: inherit; }
+    </style>
+</head>
+<body>
+
+    <div id="overlay">
+        <div id="big-emoji">😃</div>
+        <h1 id="msg-title">COLOR QUEST</h1>
+        <p id="sub-msg">Collect 10 Targets to Level Up. Don't touch lava or wrong colors!</p>
+        <div id="countdown-text"></div>
+        <button id="start-btn" onclick="startLevelSequence()">START GAME</button>
+    </div>
+
+    <div id="ui">
+        <div>LEVEL: <b id="lvl-val">1</b></div>
+        <div id="target-box" style="padding: 10px; border-radius: 5px; color: #000; font-weight: bold; background: #fff; width: 120px; border: 2px solid white;">NEXT: ???</div>
+        <div>TIME: <b id="timer">60</b>s</div>
+        <div>SCORE: <b id="score">0</b>/10</div>
+    </div>
+
+    <div id="game-board"></div>
+
+    <script>
+        const board = document.getElementById('game-board');
+        const colorList = ['red', 'green', 'blue', 'yellow'];
+        const levelTimes = [0, 60, 50, 40, 30, 25, 20, 15, 10, 10, 10];
+        
+        let playerPos = { x: 10, y: 10 };
+        let goalColor = '';
+        let score = 0;
+        let level = 1;
+        let timeLeft = 60;
+        let gameActive = false;
+        let timerInterval;
+
+        const player = document.createElement('div');
+        player.id = 'player';
+        player.className = 'cell';
+        player.innerHTML = '😃';
+
+        function startLevelSequence() {
+            document.getElementById('start-btn').style.display = 'none';
+            document.getElementById('sub-msg').style.display = 'none';
+            document.getElementById('msg-title').innerText = "LEVEL " + level;
+            document.getElementById('big-emoji').innerText = "🕹️";
+            
+            let count = 3;
+            const cdText = document.getElementById('countdown-text');
+            const cdInt = setInterval(() => {
+                if(count > 0) { cdText.innerText = count; count--; }
+                else if (count === 0) { cdText.innerText = "GO!"; count--; }
+                else {
+                    clearInterval(cdInt);
+                    document.getElementById('overlay').style.display = 'none';
+                    document.getElementById('countdown-text').innerText = "";
+                    initLevel();
+                }
+            }, 700);
+        }
+
+        function initLevel() {
+            board.innerHTML = '';
+            board.appendChild(player);
+            score = 0;
+            timeLeft = levelTimes[level];
+            document.getElementById('lvl-val').innerText = level;
+            document.getElementById('score').innerText = score;
+            
+            // Generate Border Lava (0 and 19)
+            for(let y = 0; y < 20; y++) {
+                for(let x = 0; x < 20; x++) {
+                    const isBorder = (x === 0 || x === 19 || y === 0 || y === 19);
+                    const isRandom = Math.random() < (0.05 + (level * 0.015));
+                    if(isBorder || (isRandom && (x !== 10 || y !== 10))) {
+                        createObj(x, y, 'lava', '✕');
+                    }
+                }
+            }
+            playerPos = { x: 10, y: 10 };
+            drawPlayer();
+            spawnTargets();
+            gameActive = true;
+            
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                document.getElementById('timer').innerText = timeLeft;
+                if(timeLeft <= 0) endGame("OUT OF TIME!", "😵");
+            }, 1000);
+        }
+
+        function createObj(x, y, type, colorName) {
+            const el = document.createElement('div');
+            el.className = `cell ${type}`;
+            if(type === 'target') el.classList.add(`color-${colorName}`);
+            el.style.left = (x * 20) + 'px';
+            el.style.top = (y * 20) + 'px';
+            el.dataset.x = x;
+            el.dataset.y = y;
+            el.dataset.color = colorName;
+            if(type === 'lava') el.innerHTML = '✕';
+            board.appendChild(el);
+        }
+
+        function spawnTargets() {
+            document.querySelectorAll('.target').forEach(t => t.remove());
+            goalColor = colorList[Math.floor(Math.random() * colorList.length)];
+            
+            const ui = document.getElementById('target-box');
+            ui.innerText = goalColor.toUpperCase();
+            ui.style.backgroundColor = goalColor;
+            ui.style.color = (goalColor === 'yellow') ? 'black' : 'white';
+
+            // From Level 2 onwards, spawn all 4 colors. Level 1 only spawns the goal.
+            const colorsToSpawn = (level === 1) ? [goalColor] : colorList;
+            
+            colorsToSpawn.forEach(c => {
+                let tx, ty, isOccupied;
+                do {
+                    tx = Math.floor(Math.random() * 18) + 1;
+                    ty = Math.floor(Math.random() * 18) + 1;
+                    isOccupied = Array.from(document.querySelectorAll('.cell')).some(el => el.dataset.x == tx && el.dataset.y == ty);
+                } while (isOccupied || (Math.abs(tx - playerPos.x) + Math.abs(ty - playerPos.y) < 5));
+                
+                createObj(tx, ty, 'target', c);
+            });
+        }
+
+        function drawPlayer() {
+            player.style.left = (playerPos.x * 20) + 'px';
+            player.style.top = (playerPos.y * 20) + 'px';
+            
+            // Check collisions with all objects on board
+            const obstacles = document.querySelectorAll('.cell:not(#player)');
+            obstacles.forEach(obj => {
+                if(parseInt(obj.dataset.x) === playerPos.x && parseInt(obj.dataset.y) === playerPos.y) {
+                    if(obj.classList.contains('lava')) {
+                        endGame("HIT LAVA!", "😵");
+                    } else if(obj.classList.contains('target')) {
+                        if(obj.dataset.color === goalColor) {
+                            score++;
+                            document.getElementById('score').innerText = score;
+                            timeLeft = levelTimes[level]; 
+                            if(score >= 10) nextLevel();
+                            else spawnTargets();
+                        } else {
+                            endGame("WRONG COLOR!", "😵");
+                        }
+                    }
+                }
+            });
+        }
+
+        function endGame(msg, emoji) {
+            gameActive = false;
+            clearInterval(timerInterval);
+            document.getElementById('overlay').style.display = 'flex';
+            document.getElementById('big-emoji').innerText = emoji;
+            document.getElementById('msg-title').innerText = msg;
+            const btn = document.getElementById('start-btn');
+            btn.style.display = 'block';
+            btn.innerText = "TRY AGAIN";
+            btn.onclick = () => location.reload();
+        }
+
+        function nextLevel() {
+            gameActive = false;
+            clearInterval(timerInterval);
+            if(level >= 10) {
+                endGame("YOU WON!", "🥳");
+            } else {
+                level++;
+                document.getElementById('overlay').style.display = 'flex';
+                document.getElementById('big-emoji').innerText = "😎";
+                document.getElementById('msg-title').innerText = "LEVEL CLEAR!";
+                const btn = document.getElementById('start-btn');
+                btn.style.display = 'block';
+                btn.innerText = "CONTINUE TO LEVEL " + level;
+                btn.onclick = startLevelSequence;
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if(!gameActive) return;
+            if(e.key === 'ArrowUp' && playerPos.y > 0) playerPos.y--;
+            else if(e.key === 'ArrowDown' && playerPos.y < 19) playerPos.y++;
+            else if(e.key === 'ArrowLeft' && playerPos.x > 0) playerPos.x--;
+            else if(e.key === 'ArrowRight' && playerPos.x < 19) playerPos.x++;
+            else return;
+            drawPlayer();
+        });
+    </script>
+</body>
+</html>

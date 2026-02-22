@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galactic Destiny</title>
+    <style>
+        :root {
+            --space-black: #05070a;
+            --neon-blue: #00d2ff;
+            --star-gold: #f1c40f;
+            --void-gray: #1a1c2c;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: var(--space-black);
+            background-image: radial-gradient(circle at center, var(--void-gray) 0%, var(--space-black) 100%);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        .stars-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: url('https://www.transparenttextures.com/patterns/stardust.png');
+            z-index: -1;
+        }
+
+        .container {
+            background: rgba(10, 15, 30, 0.9);
+            padding: 30px;
+            border-radius: 20px;
+            border: 2px solid var(--neon-blue);
+            box-shadow: 0 0 25px rgba(0, 210, 255, 0.3);
+            width: 400px;
+            text-align: center;
+            position: relative;
+        }
+
+        h1 { color: var(--neon-blue); text-transform: uppercase; letter-spacing: 2px; }
+        
+        input, select {
+            width: 100%; padding: 12px; margin: 10px 0;
+            background: #000; border: 1px solid #333;
+            border-radius: 8px; color: white; box-sizing: border-box;
+        }
+
+        .main-btn {
+            width: 100%; padding: 15px; margin-top: 15px;
+            background: transparent; color: var(--neon-blue);
+            border: 2px solid var(--neon-blue); border-radius: 50px;
+            cursor: pointer; font-weight: bold; transition: 0.3s;
+        }
+
+        .main-btn:hover { background: var(--neon-blue); color: black; box-shadow: 0 0 15px var(--neon-blue); }
+
+        #loader { display: none; margin: 20px 0; }
+        .galaxy {
+            width: 50px; height: 50px; border: 3px solid var(--neon-blue);
+            border-radius: 50%; border-top-color: transparent;
+            margin: 0 auto; animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #resultArea { display: none; margin-top: 25px; animation: fadeIn 0.8s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        #fortuneText { color: var(--neon-blue); font-size: 1.1rem; margin-bottom: 15px; font-style: italic; }
+        
+        canvas { background: #000; border: 1px solid #222; border-radius: 10px; margin-bottom: 10px; }
+        
+        .action-btns { display: flex; gap: 10px; margin-top: 15px; }
+        .save-btn { border: 2px solid #2ecc71; color: #2ecc71; flex: 1; padding: 10px; background: transparent; border-radius: 50px; cursor: pointer; }
+        .reset-btn { border: 2px solid #e74c3c; color: #e74c3c; flex: 1; padding: 10px; background: transparent; border-radius: 50px; cursor: pointer; }
+        .save-btn:hover { background: #2ecc71; color: black; }
+        .reset-btn:hover { background: #e74c3c; color: black; }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="stars-bg"></div>
+
+    <div class="container">
+        <h1>Cosmic Destiny</h1>
+        
+        <div id="inputArea">
+            <label style="color:var(--neon-blue); font-size: 0.8rem; text-align: left; display: block;">NAVIGATOR NAME</label>
+            <input type="text" id="userName" placeholder="Enter name...">
+            
+            <label style="color:var(--neon-blue); font-size: 0.8rem; text-align: left; display: block; margin-top: 10px;">GALAXY CLASS</label>
+            <select id="userGender">
+                <option value="Non-Binary-Explorer">Non-Binary-Explorer</option>
+                <option value="Male-Commander">Male-Commander</option>
+                <option value="Female-Nova">Female-Nova</option>
+            </select>
+            
+            <label style="color:var(--neon-blue); font-size: 0.8rem; text-align: left; display: block; margin-top: 10px;">BIRTH DATE</label>
+            <input type="date" id="dob">
+            
+            <button class="main-btn" onclick="getFortune()">CONSULT THE ORACLE</button>
+        </div>
+
+        <div id="loader">
+            <div class="galaxy"></div>
+            <p>Scanning distant nebulae...</p>
+        </div>
+
+        <div id="resultArea">
+            <div id="timestamp" style="font-size: 0.8rem; color: #fff; opacity: 0.6; margin-bottom: 5px;"></div>
+            <div id="fortuneText"></div>
+            <canvas id="stickCanvas" width="200" height="200"></canvas>
+            <div class="action-btns">
+                <button class="save-btn" onclick="downloadJPG()">SAVE JPG</button>
+                <button class="reset-btn" onclick="resetApp()">NEW JOURNEY</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const db = {
+            good: ["A solar flare brings energy to your mission.", "A wormhole shortcuts your longest task.", "Stars align for 200% snack satisfaction.", "Alien spirits guide you to luck.", "Your charisma radiates like a supernova."],
+            bad: ["Mercury is in Gatorade. Glitches imminent.", "A black hole pulls at your motivation.", "Cosmic dust clouds your judgment today.", "Space pirates eye your chocolate stash.", "Sub-par coordination in zero gravity."],
+            mixed: ["A sock is lost to the void, but $5 appears.", "A moonbeam brings a fleeting great idea.", "Expect a call from a long-lost alien friend.", "The universe offers a gift in plastic wrap.", "Your path is clear, but space-shoes are untied."]
+        };
+
+        function getZodiac(dateString) {
+            const d = new Date(dateString);
+            const m = d.getUTCMonth() + 1;
+            const day = d.getUTCDate();
+            const signs = ["Capricorn", "Aquarius", "Pisces", "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius"];
+            const days = [20, 19, 21, 20, 21, 21, 23, 23, 23, 23, 22, 22];
+            return day < days[m-1] ? signs[m-1] : signs[m % 12];
+        }
+
+        async function getFortune() {
+            const name = document.getElementById('userName').value.trim();
+            const dob = document.getElementById('dob').value;
+
+            // --- VALIDATION ---
+            if (!name || !dob) {
+                return alert("Identify yourself, traveler. Name and Date are required.");
+            }
+
+            const nameRegex = /^[a-zA-Z\s]{4,25}$/;
+            if (!nameRegex.test(name)) {
+                return alert("Navigator name must be 4-25 letters. No numbers or special characters.");
+            }
+
+            const birthDate = new Date(dob);
+            const today = new Date();
+            if (birthDate > today) return alert("Time travel detected! You cannot be born in the future.");
+            if (birthDate.getFullYear() < 1900) return alert("Coordinates too old.");
+
+            // --- UI TRANSITION ---
+            document.getElementById('inputArea').classList.add('hidden');
+            document.getElementById('loader').style.display = 'block';
+
+            const sign = getZodiac(dob);
+            let seed = Array.from(name).reduce((s, c) => s + c.charCodeAt(0), 0) + new Date(dob).getTime();
+            const rng = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+            let finalFortune = "";
+            try {
+                const res = await fetch(`https://horoscope-app-api.vercel.app/api/v1/get-horoscope/daily?sign=${sign.toLowerCase()}&day=today`, { signal: controller.signal });
+                const data = await res.json();
+                clearTimeout(timeoutId);
+                // Get the first sentence or first 12 words of the real horoscope
+                const apiText = data.data.horoscope_data.split(".")[0]; 
+                finalFortune = `${apiText}. Also, ${db.mixed[Math.floor(rng() * 5)]}`;
+            } catch (e) {
+                const type = rng() > 0.7 ? 'good' : (rng() < 0.3 ? 'bad' : 'mixed');
+                finalFortune = db[type][Math.floor(rng() * 5)];
+            }
+
+            // Artificial delay for "Scanning" effect
+            setTimeout(() => {
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('resultArea').style.display = 'block';
+
+                const now = new Date();
+                const starDate = now.toLocaleDateString() + " | " + now.toLocaleTimeString();
+                
+                document.getElementById('timestamp').innerText = "STAR DATE: " + starDate;
+                document.getElementById('fortuneText').innerText = `${name} (${sign}): ${finalFortune}`;
+                drawStickFigure(rng);
+            }, 2000); 
+        }
+
+        function drawStickFigure(rng) {
+            const canvas = document.getElementById('stickCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 200, 200);
+            ctx.strokeStyle = "#00d2ff"; ctx.lineWidth = 3;
+            
+            const pose = Math.floor(rng() * 4);
+            ctx.beginPath(); ctx.arc(100, 50, 15, 0, Math.PI * 2); ctx.stroke(); // Head
+            ctx.beginPath(); ctx.moveTo(100, 65); ctx.lineTo(100, 120); // Body
+
+            if(pose === 0) { // Celebration
+                ctx.moveTo(100, 80); ctx.lineTo(60, 40); ctx.moveTo(100, 80); ctx.lineTo(140, 40);
+            } else if (pose === 1) { // Floating
+                ctx.moveTo(100, 80); ctx.lineTo(60, 70); ctx.moveTo(100, 80); ctx.lineTo(140, 90);
+            } else { // Neutral
+                ctx.moveTo(100, 80); ctx.lineTo(140, 50); ctx.moveTo(100, 80); ctx.lineTo(60, 110);
+            }
+            ctx.moveTo(100, 120); ctx.lineTo(80, 170); ctx.moveTo(100, 120); ctx.lineTo(120, 170);
+            ctx.stroke();
+
+            ctx.strokeStyle = "#f1c40f"; ctx.lineWidth = 2;
+            const item = Math.floor(rng() * 3);
+            if(item === 0) { 
+                ctx.beginPath(); ctx.arc(160, 50, 8, 0, Math.PI*2); ctx.stroke();
+            } else if (item === 1) { 
+                ctx.moveTo(100, 35); ctx.lineTo(100, 15); ctx.stroke();
+            } else { 
+                ctx.strokeRect(145, 45, 8, 8);
+            }
+        }
+
+        function resetApp() {
+            document.getElementById('resultArea').style.display = 'none';
+            document.getElementById('inputArea').classList.remove('hidden');
+            document.getElementById('userName').value = '';
+            document.getElementById('dob').value = '';
+        }
+
+        function downloadJPG() {
+            const canvas = document.getElementById('stickCanvas');
+            const tempCanvas = document.createElement('canvas');
+            const tCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = 500; tempCanvas.height = 400;
+
+            tCtx.fillStyle = "#05070a"; tCtx.fillRect(0,0,500,400);
+            
+            // Draw original canvas content
+            tCtx.drawImage(canvas, 150, 50);
+
+            // Add Text
+            const starDate = document.getElementById('timestamp').innerText;
+            const fortune = document.getElementById('fortuneText').innerText;
+
+            tCtx.fillStyle = "rgba(255, 255, 255, 0.5)";
+            tCtx.font = "12px Arial";
+            tCtx.fillText(starDate, 20, 30);
+
+            tCtx.fillStyle = "#00d2ff"; 
+            tCtx.font = "14px Segoe UI";
+            
+            // Simple text wrapping
+            const wrapText = (text, x, y, maxWidth, lineHeight) => {
+                const words = text.split(' ');
+                let line = '';
+                for(let n = 0; n < words.length; n++) {
+                    let testLine = line + words[n] + ' ';
+                    if (tCtx.measureText(testLine).width > maxWidth && n > 0) {
+                        tCtx.fillText(line, x, y);
+                        line = words[n] + ' ';
+                        y += lineHeight;
+                    } else { line = testLine; }
+                }
+                tCtx.fillText(line, x, y);
+            };
+
+            wrapText(fortune, 30, 300, 440, 20);
+
+            const link = document.createElement('a');
+            link.download = 'cosmic_log.jpg';
+            link.href = tempCanvas.toDataURL('image/jpeg');
+            link.click();
+        }
+    </script>
+</body>
+</html>
